@@ -425,7 +425,7 @@ export type ProtocolParams = {
   languageView: LanguageView;
   maxTxSize?: number;
   maxValueSize: number;
-  minFeeRefScriptCostPerByte: number;
+  minFeeRefScriptCostPerByte: BigNumber;
 };
 
 export type CostMdls = {
