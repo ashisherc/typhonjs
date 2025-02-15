@@ -495,6 +495,28 @@ describe("Typhonjs", (): void => {
         const fee = tx.getFee().toNumber();
         expect(fee).to.eq(197489);
       });
+
+      it("calculates correct fees with donation & treasury amount", () => {
+        const output: types.Output = {
+          amount: new BigNumber(5000000),
+          address: stub.receiverAddress,
+          tokens: [],
+        };
+        const tx = new Transaction({ protocolParams: stub.pParams });
+
+        tx.setDonationAmount(new BigNumber(1000000));
+        tx.setTreasuryAmount(new BigNumber(2000000));
+        tx.setTTL(3000000);
+        tx.addOutput(output);
+
+        tx.prepareTransaction({
+          inputs: stub.UTXOs,
+          changeAddress: stub.changeAddress,
+        });
+
+        const fee = tx.getFee().toNumber();
+        expect(fee).to.eq(168845);
+      });
     });
 
     describe("utxo selection", () => {
@@ -721,6 +743,88 @@ describe("Typhonjs", (): void => {
 
         expect(collateralOutput?.amount.toNumber()).to.eq(8000000);
         expect(collateralOutput?.address.getHex()).to.eq(stub.receiverAddress.getHex());
+      });
+    });
+
+    describe("donation and treasury fields", () => {
+      const output: types.Output = {
+        amount: new BigNumber(5000000),
+        address: stub.receiverAddress,
+        tokens: [],
+      };
+
+      const tx = new Transaction({ protocolParams: stub.pParams });
+      tx.addInput(stub.UTXOs[0]);
+      tx.addInput(stub.UTXOs[1]);
+      tx.addOutput(output);
+      tx.setDonationAmount(new BigNumber(1000000));
+      tx.setTreasuryAmount(new BigNumber(2000000));
+
+      tx.buildTransaction();
+
+      it("can set donation", () => {
+        const donationAmount = tx.getDonationAmount();
+        expect(donationAmount?.toNumber()).to.eq(1000000);
+      });
+
+      it("can set treasury amount", () => {
+        const treasuryAmount = tx.getTreasuryAmount();
+        expect(treasuryAmount?.toNumber()).to.eq(2000000);
+      });
+    });
+
+    describe("proposal procedure transaction", () => {
+      const output: types.Output = {
+        amount: new BigNumber(5000000),
+        address: stub.receiverAddress,
+        tokens: [],
+      };
+
+      const tx = new Transaction({ protocolParams: stub.pParams });
+      tx.addInput(stub.UTXOs[0]);
+      tx.addInput(stub.UTXOs[1]);
+      tx.addOutput(output);
+
+      tx.addProposalProcedure(stub.proposalProcedure0);
+
+      tx.buildTransaction();
+
+      it("can set proposalProcedure", () => {
+        const proposalProcedures = tx.getProposalProcedures();
+        expect(proposalProcedures[0]?.govAction.type).to.eq(1);
+      });
+
+      it("has correct additional ADA requirement", () => {
+        const additionalAda = tx.getAdditionalOutputAda();
+        // additional 100k ADA required due to proposal deposit
+        expect(additionalAda.toNumber()).to.eq(100000000000);
+      });
+    });
+
+    describe("voting procedure transaction", () => {
+      const output: types.Output = {
+        amount: new BigNumber(5000000),
+        address: stub.receiverAddress,
+        tokens: [],
+      };
+
+      const tx = new Transaction({ protocolParams: stub.pParams });
+      tx.addInput(stub.UTXOs[0]);
+      tx.addInput(stub.UTXOs[1]);
+      tx.addOutput(output);
+
+      tx.addVotingProcedure(stub.votingProcedure0);
+
+      tx.buildTransaction();
+
+      it("can set votingProcedure", () => {
+        const votingProcedures = tx.getVotingProcedures();
+        expect(votingProcedures[0]?.voter.key.hash.toString("hex")).to.eq(
+          stub.voter0.key.hash.toString("hex")
+        );
+        expect(votingProcedures[0]?.votes[0].govActionId.txId.toString("hex")).to.eq(
+          stub.govActionId0.txId.toString("hex")
+        );
       });
     });
   });
