@@ -218,9 +218,12 @@ export function transactionBuilder({
           amount: changeADA.minus(feeWithChange),
           tokens: [],
         });
-      } else {
+      } else if (changeADA.lt(2000000)) {
+        // if change is less than 2 ADA
         // not enough ADA for a change, set remaining ADA as fee
         transaction.setFee(changeADA);
+      } else {
+        throw new Error("Not enough ADA");
       }
     } else {
       throw new Error("Not enough ADA");

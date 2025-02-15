@@ -81,6 +81,8 @@ export class Transaction {
   protected validityIntervalStart: number | undefined;
   protected votingProcedures: Array<VotingProcedure> = [];
   protected proposalProcedures: Array<ProposalProcedure> = [];
+  protected donationAmount: BigNumber | undefined;
+  protected treasuryAmount: BigNumber | undefined;
 
   constructor({ protocolParams }: { protocolParams: ProtocolParams }) {
     this._protocolParams = protocolParams;
@@ -388,10 +390,26 @@ export class Transaction {
     return this.totalCollateral;
   }
 
+  setDonationAmount(amount: BigNumber): void {
+    this.donationAmount = amount;
+  }
+
+  getDonationAmount(): BigNumber | undefined {
+    return this.donationAmount;
+  }
+
+  setTreasuryAmount(amount: BigNumber): void {
+    this.treasuryAmount = amount;
+  }
+
+  getTreasuryAmount(): BigNumber | undefined {
+    return this.treasuryAmount;
+  }
+
   /**
    * This method will encode the transaction body to be included in the cbor
    */
-  protected transactionBody({
+  protected encodeTransactionBody({
     extraOutputs,
     scriptDataHash,
   }: {
@@ -470,6 +488,14 @@ export class Transaction {
       );
     }
 
+    if (this.donationAmount) {
+      encodedBody.set(TransactionBodyItemType.DONATION_AMOUNT, this.donationAmount);
+    }
+
+    if (this.treasuryAmount) {
+      encodedBody.set(TransactionBodyItemType.TREASURY_AMOUNT, this.treasuryAmount);
+    }
+
     return encodedBody;
   }
 
@@ -503,17 +529,18 @@ export class Transaction {
     return memPrice.plus(stepsPrice).integerValue(BigNumber.ROUND_CEIL);
   }
 
-  private calculateRefScriptFee(): number {
+  private calculateRefScriptFee(): BigNumber {
+    // sizeIncrement and multiplier are fixed numbers in cardano node
     const sizeIncrement = 25600;
     const multiplier = 1.2;
     const minFeeRefScriptCostPerByte = this._protocolParams.minFeeRefScriptCostPerByte;
 
-    const calculate = (acc: number, curTierPrice: number, size: number): number => {
+    const calculate = (acc: BigNumber, curTierPrice: BigNumber, size: number): BigNumber => {
       if (size < sizeIncrement) {
-        return Math.floor(acc + size * curTierPrice);
+        return curTierPrice.multipliedBy(size).plus(acc).integerValue(BigNumber.ROUND_FLOOR);
       }
-      const acc_ = acc + curTierPrice * sizeIncrement;
-      return calculate(acc_, multiplier * curTierPrice, size - sizeIncrement);
+      const acc_ = curTierPrice.multipliedBy(sizeIncrement).plus(acc);
+      return calculate(acc_, curTierPrice.multipliedBy(multiplier), size - sizeIncrement);
     };
 
     const getNSSize = (nativeScript: NativeScript): number => {
@@ -545,9 +572,9 @@ export class Transaction {
     }
 
     if (totalRefScriptSize > 0) {
-      return calculate(0, minFeeRefScriptCostPerByte, totalRefScriptSize);
+      return calculate(new BigNumber(0), minFeeRefScriptCostPerByte, totalRefScriptSize);
     }
-    return 0;
+    return new BigNumber(0);
   }
 
   calculateTxSize(extraOutputs?: Array<Output>): number {
@@ -584,7 +611,7 @@ export class Transaction {
       this._isPlutusV2Transaction,
       this._isPlutusV3Transaction
     );
-    const encodedBody = this.transactionBody({ extraOutputs, scriptDataHash });
+    const encodedBody = this.encodeTransactionBody({ extraOutputs, scriptDataHash });
     const transaction = [
       encodedBody,
       encodedWitnesses,
@@ -636,7 +663,7 @@ export class Transaction {
       this._isPlutusV2Transaction,
       this._isPlutusV3Transaction
     );
-    const encodedBody = this.transactionBody({ scriptDataHash });
+    const encodedBody = this.encodeTransactionBody({ scriptDataHash });
     const cborBody = cbors.Encoder.encode(encodedBody) as Buffer;
     return hash32(cborBody);
   }
@@ -670,7 +697,7 @@ export class Transaction {
       this._isPlutusV2Transaction,
       this._isPlutusV3Transaction
     );
-    const encodedBody = this.transactionBody({ scriptDataHash });
+    const encodedBody = this.encodeTransactionBody({ scriptDataHash });
     const transaction = [
       encodedBody,
       encodedWitnesses,
@@ -824,6 +851,7 @@ export class Transaction {
    * to calculate additional ADA required for transaction validity.
    * 1. stake key registration deposit ADA
    * 2. proposal procedure deposit ADA
+   * 3. donation amount
    * @returns additional ADA required for a valid transaction
    */
   getAdditionalOutputAda(): BigNumber {
@@ -850,13 +878,15 @@ export class Transaction {
       new BigNumber(0)
     );
 
-    return depositInCerts.plus(depositInProposalProcedure);
+    const donationAmount = this.donationAmount || new BigNumber(0);
+
+    return depositInCerts.plus(depositInProposalProcedure).plus(donationAmount);
   }
 
   /**
    * This method scans the certificates added in the transaction to calculate
    * additional ADA available in inputs as part of the deposit refund.
-   * Essentially ADA to be considered as additional input deu to deposit refunds.
+   * Essentially ADA to be considered as additional input due to deposit refunds.
    * @returns additional ADA available as input
    */
   getAdditionalInputAda(): BigNumber {

@@ -38,6 +38,8 @@ export enum TransactionBodyItemType {
   REFERENCE_INPUTS = 18,
   VOTING_PROCEDURES = 19,
   PROPOSAL_PROCEDURES = 20,
+  TREASURY_AMOUNT = 21,
+  DONATION_AMOUNT = 22,
 }
 
 export enum OutputItemType {
