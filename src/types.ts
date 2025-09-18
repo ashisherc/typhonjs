@@ -93,6 +93,45 @@ export type NativeScript =
   | NativeScriptAll
   | NativeScriptAny;
 
+export type CLINativeScriptPubKeyHash = {
+  type: "sig";
+  keyHash: string;
+};
+
+export type CLINativeScriptAll = {
+  type: "all";
+  scripts: Array<CLINativeScript>;
+};
+
+export type CLINativeScriptAny = {
+  type: "any";
+  scripts: Array<CLINativeScript>;
+};
+
+export type CLINativeScriptAtLeast = {
+  type: "atLeast";
+  required: number;
+  scripts: Array<CLINativeScript>;
+};
+
+export type CLINativeScriptBefore = {
+  type: "before";
+  slot: number;
+};
+
+export type CLINativeScriptAfter = {
+  type: "after";
+  slot: number;
+};
+
+export type CLINativeScript =
+  | CLINativeScriptPubKeyHash
+  | CLINativeScriptAtLeast
+  | CLINativeScriptBefore
+  | CLINativeScriptAfter
+  | CLINativeScriptAll
+  | CLINativeScriptAny;
+
 export type PlutusScript = {
   cborHex: string;
   type: PlutusScriptType;
